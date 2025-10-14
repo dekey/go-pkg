@@ -16,6 +16,8 @@ const (
 
 var (
 	ErrFailToGetCallerID  = errors.New("failed to get caller info")
+	ErrCallerIDIsNegative = errors.New("caller is negative but it should be positive")
+	ErrEmptyFileName      = errors.New("file name is empty")
 	ErrFailToFindRootDir  = errors.New("failed to find root dir")
 	ErrModulePathNotFound = errors.New("module path not found in go.mod")
 )
@@ -36,6 +38,13 @@ func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 }
 
 func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
+	if skipCaller < 0 {
+		return "", fmt.Errorf("%w", ErrCallerIDIsNegative)
+	}
+	if file == "" {
+		return "", fmt.Errorf("%w", ErrEmptyFileName)
+	}
+
 	_, currentFilepath, _, ok := runtime.Caller(skipCaller)
 	if !ok {
 		return "", fmt.Errorf("%w", ErrFailToGetCallerID)

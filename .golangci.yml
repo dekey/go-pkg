@@ -49,6 +49,7 @@ linters:
           allow:
             - $gostd
             - github.com/dekey/go-pkg
+            - github.com/stretchr/testify
           deny:
             - pkg: io/ioutil
               desc: not allowed
