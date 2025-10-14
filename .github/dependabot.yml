@@ -5,8 +5,8 @@ updates:
   schedule:
     interval: daily
     time: "04:00"
-#  reviewers:
-#    - "dekey"
+  reviewers:
+    - "dekey"
   commit-message:
     prefix: "chore: bot"
     include: "scope"
