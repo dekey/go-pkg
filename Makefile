@@ -15,6 +15,7 @@ init:
 format:
 	golines --base-formatter="goimports" -w -m 120 .
 	gofumpt -w .
+	go fix ./...
 
 lint:
 	golangci-lint -c ".golangci.yml" run --allow-parallel-runners ./...
