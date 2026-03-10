@@ -28,11 +28,11 @@ go.work.sum
 .env
 
 # Editor/IDE
+vendor/
 .idea/
-.vscode/
-vendor
-.mcp.json
+data/*
 .claude
-.gemini
 .serena
+.output.*
+.mcp.json
 .mcp.local.json
