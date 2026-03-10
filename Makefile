@@ -6,7 +6,7 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 init:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.1
 	make add-vendor
 
 ##########
@@ -27,6 +27,10 @@ add-vendor:
 	go mod tidy
 	go mod verify
 	go mod vendor
+
+update-dependencies: ## update dependencies
+	go get -u ./...
+	make add-vendor
 
 test:
 	go test -parallel=1 -count=1 ./...
