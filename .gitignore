@@ -31,3 +31,8 @@ go.work.sum
 .idea/
 .vscode/
 vendor
+.mcp.json
+.claude
+.gemini
+.serena
+.mcp.local.json
