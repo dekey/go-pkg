@@ -107,3 +107,64 @@ func TestLocator_FindRootDir(t *testing.T) {
 		})
 	}
 }
+
+func TestLocator_FindRootDirFrom(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	thisDir := filepath.Dir(thisFile)
+
+	testCases := []struct {
+		name     string
+		startDir string
+		file     string
+		assert   func(t *testing.T, dir string, err error)
+	}{
+		{
+			name:     "success: finds project root by go.mod",
+			startDir: thisDir,
+			file:     "go.mod",
+			assert: func(t *testing.T, dir string, err error) {
+				require.NoError(t, err)
+				require.True(t, strings.HasPrefix(thisFile, dir))
+				_, statErr := os.Stat(filepath.Join(dir, "go.mod"))
+				require.NoError(t, statErr)
+			},
+		},
+		{
+			name:     "success: returned path is clean",
+			startDir: thisDir,
+			file:     "go.mod",
+			assert: func(t *testing.T, dir string, err error) {
+				require.NoError(t, err)
+				require.Equal(t, filepath.Clean(dir), dir)
+				require.NotContains(t, dir, "..")
+			},
+		},
+		{
+			name:     "error: file not found in any parent",
+			startDir: thisDir,
+			file:     "___definitely_not_existing___.txt",
+			assert: func(t *testing.T, got string, err error) {
+				require.ErrorIs(t, err, fs.ErrFailToFindRootDir)
+				require.Empty(t, got)
+			},
+		},
+		{
+			name:     "error: empty filename",
+			startDir: thisDir,
+			file:     "",
+			assert: func(t *testing.T, got string, err error) {
+				require.ErrorIs(t, err, fs.ErrEmptyFileName)
+				require.Empty(t, got)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			locator := fs.NewLocator()
+			dir, err := locator.FindRootDirFrom(tc.startDir, tc.file)
+			tc.assert(t, dir, err)
+		})
+	}
+}

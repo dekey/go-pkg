@@ -28,6 +28,7 @@ func NewLocator() *Locator {
 	return &Locator{}
 }
 
+// FindRootDirWithGoMod is a convenience method that calls FindRootDir with the "go.mod" filename.
 func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	result, err := l.FindRootDir(goModFilename, skipCaller)
 	if err != nil {
@@ -37,6 +38,28 @@ func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	return result, nil
 }
 
+// FindRootDirFrom searches for the root directory containing the specified file starting from the given directory and
+// moving upwards.
+func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) {
+	if file == "" {
+		return "", fmt.Errorf("%w", ErrEmptyFileName)
+	}
+
+	dir := l.findRootDir(startDir, file)
+	if dir == "" {
+		return "", fmt.Errorf(
+			"cannot find root dir for file [%s] in filepath [%s] %w",
+			file,
+			startDir,
+			ErrFailToFindRootDir,
+		)
+	}
+
+	return dir, nil
+}
+
+// FindRootDir searches for the root directory containing the specified file starting from the caller's file path
+// and moving upwards.
 func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 	if skipCaller < 0 {
 		return "", fmt.Errorf("%w", ErrCallerIDIsNegative)
@@ -85,11 +108,11 @@ func (*Locator) ReadModulePath(root string) (string, error) {
 		return "", err
 	}
 
-	lines := strings.Split(string(fileContentBytes), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(fileContentBytes), "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			mod := strings.TrimSpace(strings.TrimPrefix(line, "module "))
+		if after, ok := strings.CutPrefix(line, "module "); ok {
+			mod := strings.TrimSpace(after)
 			// strip quotes if any
 			mod = strings.Trim(mod, "\"`")
 			// drop trailing .git if present
