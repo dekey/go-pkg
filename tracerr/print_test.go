@@ -1,7 +1,9 @@
+//nolint:testpackage
 package tracerr
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -14,9 +16,7 @@ func resetCache(t *testing.T, seed map[string][]string) {
 	t.Helper()
 	mutex.Lock()
 	cache = make(map[string][]string)
-	for k, v := range seed {
-		cache[k] = v
-	}
+	maps.Copy(cache, seed)
 	mutex.Unlock()
 	t.Cleanup(func() {
 		mutex.Lock()
@@ -53,7 +53,7 @@ func TestReadLines(t *testing.T) {
 		wantErrSub string
 	}{
 		"file not found": {
-			path:       func(t *testing.T) string { return "/nonexistent/tracerr_test_file.go" },
+			path:       func(_ *testing.T) string { return "/nonexistent/tracerr_test_file.go" },
 			wantErrSub: "not found",
 		},
 		"reads file and populates cache": {
@@ -61,7 +61,7 @@ func TestReadLines(t *testing.T) {
 			wantLines: []string{"line1", "line2", "line3"},
 		},
 		"returns from cache, skips disk read": {
-			path: func(t *testing.T) string { return "/fake/cached.go" },
+			path: func(_ *testing.T) string { return "/fake/cached.go" },
 			seedCache: map[string][]string{
 				"/fake/cached.go": {"cached_line1", "cached_line2"},
 			},
@@ -150,8 +150,15 @@ func TestSprintSourceColor(t *testing.T) {
 			want: "plain error",
 		},
 		"no nums: with source, frame bold, file error yellow": {
-			err:  fakeErr,
-			want: join("test error", "", bold(fakeFrame.String()), yellow("tracerr: file /fake/path.go not found"), "", "\n\r"),
+			err: fakeErr,
+			want: join(
+				"test error",
+				"",
+				bold(fakeFrame.String()),
+				yellow("tracerr: file /fake/path.go not found"),
+				"",
+				"\n\r",
+			),
 		},
 		"zero: no source, frame bold": {
 			err:  fakeErr,

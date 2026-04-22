@@ -60,7 +60,7 @@ func (e *errorData) Unwrap() error {
 
 func trace(err error, skip int) Error {
 	frames := make([]Frame, 0, DefaultCap)
-	for i := 0; i < DefaultFrameLimit; i++ {
+	for range DefaultFrameLimit {
 		pc, path, line, ok := runtime.Caller(skip)
 		if !ok {
 			break
