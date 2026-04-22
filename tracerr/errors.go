@@ -25,7 +25,7 @@ func Errorf(message string, args ...any) Error {
 
 // New creates new error with stacktrace.
 func New(message string) Error {
-	return trace(fmt.Errorf("%s", message), DefaultSkip)
+	return trace(errors.New(message), DefaultSkip)
 }
 
 // Wrap adds stacktrace to existing error.

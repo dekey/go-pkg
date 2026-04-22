@@ -36,3 +36,5 @@ data/*
 .output.*
 .mcp.json
 .mcp.local.json
+.agent
+.codex
