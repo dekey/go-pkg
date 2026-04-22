@@ -11,6 +11,8 @@ import (
 // for purpose of performance optimisation.
 const DefaultCap = 20
 
+const DefaultFrameLimit = 50
+
 // Frame is a single step in stack trace.
 type Frame struct {
 	// Func contains a function name.
@@ -55,7 +57,7 @@ func (e *errorData) Unwrap() error {
 
 func trace(err error, skip int) Error {
 	frames := make([]Frame, 0, DefaultCap)
-	for {
+	for i := 0; i < DefaultFrameLimit; i++ {
 		pc, path, line, ok := runtime.Caller(skip)
 		if !ok {
 			break
