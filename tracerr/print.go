@@ -78,7 +78,7 @@ func sprint(err error, nums []int, colorized bool) string {
 	return strings.Join(rows, "\n\r")
 }
 
-func calcRows(nums []int) (before, after int, withSource bool) {
+func calcRows(nums []int) (before int, after int, withSource bool) {
 	before = DefaultLinesBefore
 	after = DefaultLinesAfter
 	withSource = true

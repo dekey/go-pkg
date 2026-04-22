@@ -2,7 +2,6 @@ package tracerr
 
 import (
 	"fmt"
-	"log/slog"
 	"runtime"
 )
 
@@ -68,7 +67,6 @@ func trace(err error, skip int) Error {
 		fn := runtime.FuncForPC(pc)
 		funcName := ""
 		if fn != nil {
-			slog.Info("trace func", "name", fn.Name())
 			funcName = fn.Name()
 		}
 

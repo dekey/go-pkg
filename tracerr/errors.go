@@ -17,15 +17,14 @@ type Error interface {
 // Errorf creates new error with stacktrace and formatted message.
 // Formatting works the same way as in fmt.Errorf.
 func Errorf(message string, args ...any) Error {
-	return trace(
-		fmt.Errorf(message, args...),
-		DefaultSkip,
-	)
+	err := fmt.Errorf(message, args...)
+	return trace(err, DefaultSkip)
 }
 
 // New creates new error with stacktrace.
 func New(message string) Error {
-	return trace(errors.New(message), DefaultSkip)
+	err := errors.New(message)
+	return trace(err, DefaultSkip)
 }
 
 // Wrap adds stacktrace to existing error.
