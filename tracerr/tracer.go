@@ -6,11 +6,14 @@ import (
 	"runtime"
 )
 
-// DefaultCap is a default cap for frames array.
-// It can be changed to number of expected frames
-// for purpose of performance optimisation.
+// DefaultCap is the initial capacity of the frames slice allocated in trace.
+// Pre-allocating avoids repeated heap growth when the stack depth is typical;
+// tune it to the expected call depth of your application for best performance.
 const DefaultCap = 20
 
+// DefaultFrameLimit is the maximum number of stack frames captured per error.
+// Prevents unbounded loop iteration in trace when the call stack is unusually deep
+// or runtime.Caller never returns ok=false (e.g. in tests or recursive code).
 const DefaultFrameLimit = 50
 
 // Frame is a single step in stack trace.
@@ -65,7 +68,7 @@ func trace(err error, skip int) Error {
 		fn := runtime.FuncForPC(pc)
 		funcName := ""
 		if fn != nil {
-			slog.Info("trace func:", fn.Name())
+			slog.Info("trace func", "name", fn.Name())
 			funcName = fn.Name()
 		}
 

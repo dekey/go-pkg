@@ -164,6 +164,9 @@ func readLines(path string) ([]string, error) {
 	lines = strings.Split(string(b), "\n")
 	mutex.Lock()
 	defer mutex.Unlock()
-	cache[path] = lines
-	return lines, nil
+	if _, ok := cache[path]; !ok {
+		cache[path] = lines
+	}
+
+	return cache[path], nil
 }
