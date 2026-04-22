@@ -78,6 +78,101 @@ func TestReadLines(t *testing.T) {
 	}
 }
 
+func TestSprintFunc(t *testing.T) {
+	frame1 := Frame{Func: "pkg.Func1", Line: 10, Path: "/fake/a.go"}
+	frame2 := Frame{Func: "pkg.Func2", Line: 20, Path: "/fake/b.go"}
+
+	join := func(parts ...string) string {
+		return strings.Join(parts, "\n\r")
+	}
+
+	tests := map[string]struct {
+		err  error
+		want string
+	}{
+		"nil returns empty": {
+			err:  nil,
+			want: "",
+		},
+		"non-traceable returns message only": {
+			err:  errors.New("plain error"),
+			want: "plain error",
+		},
+		"no frames": {
+			err:  &errorData{err: errors.New("test error"), frames: nil},
+			want: join("test error", "\n\r"),
+		},
+		"single frame: plain text, no source, no color": {
+			err:  &errorData{err: errors.New("test error"), frames: []Frame{frame1}},
+			want: join("test error", frame1.String(), "\n\r"),
+		},
+		"multiple frames: all plain, no source between them": {
+			err:  &errorData{err: errors.New("test error"), frames: []Frame{frame1, frame2}},
+			want: join("test error", frame1.String(), frame2.String(), "\n\r"),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := Sprint(tt.err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSprintSourceColor(t *testing.T) {
+	fakeFrame := Frame{Func: "pkg.TestFunc", Line: 42, Path: "/fake/path.go"}
+	fakeErr := &errorData{err: errors.New("test error"), frames: []Frame{fakeFrame}}
+
+	f, err := os.CreateTemp(t.TempDir(), "*.go")
+	require.NoError(t, err)
+	_, err = f.WriteString("line1\nline2\nline3\nline4\nline5")
+	require.NoError(t, err)
+	f.Close()
+	realFrame := Frame{Func: "pkg.RealFunc", Line: 3, Path: f.Name()}
+	realErr := &errorData{err: errors.New("real error"), frames: []Frame{realFrame}}
+
+	join := func(parts ...string) string {
+		return strings.Join(parts, "\n\r")
+	}
+
+	tests := map[string]struct {
+		err  error
+		nums []int
+		want string
+	}{
+		"nil returns empty": {
+			err:  nil,
+			want: "",
+		},
+		"non-traceable returns message only": {
+			err:  errors.New("plain error"),
+			want: "plain error",
+		},
+		"no nums: with source, frame bold, file error yellow": {
+			err:  fakeErr,
+			want: join("test error", "", bold(fakeFrame.String()), yellow("tracerr: file /fake/path.go not found"), "", "\n\r"),
+		},
+		"zero: no source, frame bold": {
+			err:  fakeErr,
+			nums: []int{0},
+			want: join("test error", bold(fakeFrame.String()), "\n\r"),
+		},
+		"two zero values: with source, current line red, no context": {
+			err:  realErr,
+			nums: []int{0, 0},
+			want: join("real error", "", bold(realFrame.String()), red("3\tline3"), "", "\n\r"),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := SprintSourceColor(tt.err, tt.nums...)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestSprint(t *testing.T) {
 	fakeFrame := Frame{Func: "pkg.TestFunc", Line: 42, Path: "/fake/path.go"}
 	fakeErr := &errorData{err: errors.New("test error"), frames: []Frame{fakeFrame}}
