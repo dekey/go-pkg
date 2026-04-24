@@ -2,12 +2,13 @@ package filesystem
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/dekey/go-pkg/tracerr"
 )
 
 const (
@@ -15,15 +16,19 @@ const (
 )
 
 var (
-	ErrFailToGetCallerID  = errors.New("failed to get caller info")
-	ErrCallerIDIsNegative = errors.New("caller is negative but it should be positive")
-	ErrEmptyFileName      = errors.New("file name is empty")
-	ErrFailToFindRootDir  = errors.New("failed to find root dir")
-	ErrModulePathNotFound = errors.New("module path not found in go.mod")
+	ErrFailToGetCallerID       = errors.New("failed to get caller info")
+	ErrCallerIDIsNegative      = errors.New("caller is negative but it should be positive")
+	ErrEmptyFileName           = errors.New("file name is empty")
+	ErrFailToFindRootDir       = errors.New("failed to find root dir")
+	ErrModulePathNotFound      = errors.New("module path not found in go.mod")
+	ErrFailToGetRelPackagePath = errors.New("failed to get relative package path")
+	ErrFailToReadGoMod         = errors.New("failed to read go.mod")
 )
 
+// Locator locates the project root directory by traversing the file system upward.
 type Locator struct{}
 
+// NewLocator returns a new Locator.
 func NewLocator() *Locator {
 	return &Locator{}
 }
@@ -42,13 +47,13 @@ func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 // moving upwards.
 func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) {
 	if file == "" {
-		return "", fmt.Errorf("%w", ErrEmptyFileName)
+		return "", tracerr.Wrap(ErrEmptyFileName)
 	}
 
 	dir := l.findRootDir(startDir, file)
 	if dir == "" {
-		return "", fmt.Errorf(
-			"cannot find root dir for file [%s] in filepath [%s] %w",
+		return "", tracerr.Errorf(
+			"cannot find root dir for file %q in filepath %q: %w",
 			file,
 			startDir,
 			ErrFailToFindRootDir,
@@ -62,21 +67,21 @@ func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) 
 // and moving upwards.
 func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 	if skipCaller < 0 {
-		return "", fmt.Errorf("%w", ErrCallerIDIsNegative)
+		return "", tracerr.Wrap(ErrCallerIDIsNegative)
 	}
 	if file == "" {
-		return "", fmt.Errorf("%w", ErrEmptyFileName)
+		return "", tracerr.Wrap(ErrEmptyFileName)
 	}
 
 	_, currentFilepath, _, ok := runtime.Caller(skipCaller)
 	if !ok {
-		return "", fmt.Errorf("%w", ErrFailToGetCallerID)
+		return "", tracerr.Wrap(ErrFailToGetCallerID)
 	}
 
 	dir := l.findRootDir(currentFilepath, file)
 	if dir == "" {
-		return "", fmt.Errorf(
-			"cannot find root dir for file [%s] in filepath [%s] %w",
+		return "", tracerr.Errorf(
+			"cannot find root dir for file %q in filepath %q: %w",
 			file,
 			currentFilepath,
 			ErrFailToFindRootDir,
@@ -100,12 +105,13 @@ func (l *Locator) findRootDir(from string, file string) string {
 	return ""
 }
 
-func (*Locator) ReadModulePath(root string) (string, error) {
+// ReadModulePath reads and returns the module path from the go.mod file at the given root directory.
+func (l *Locator) ReadModulePath(root string) (string, error) {
 	goModFilePath := filepath.Join(root, goModFilename)
 
 	fileContentBytes, err := os.ReadFile(goModFilePath)
 	if err != nil {
-		return "", err
+		return "", tracerr.Errorf("%w: %w", ErrFailToReadGoMod, err)
 	}
 
 	lines := strings.SplitSeq(string(fileContentBytes), "\n")
@@ -113,31 +119,42 @@ func (*Locator) ReadModulePath(root string) (string, error) {
 		line = strings.TrimSpace(line)
 		if after, ok := strings.CutPrefix(line, "module "); ok {
 			mod := strings.TrimSpace(after)
-			// strip quotes if any
+			if i := strings.Index(mod, "//"); i != -1 {
+				mod = strings.TrimSpace(mod[:i])
+			}
 			mod = strings.Trim(mod, "\"`")
-			// drop trailing .git if present
 			mod = strings.TrimSuffix(mod, ".git")
 
 			return mod, nil
 		}
 	}
-	return "", fmt.Errorf("%w", ErrModulePathNotFound)
+	return "", tracerr.Wrap(ErrModulePathNotFound)
 }
 
-// RelativePackagePath returns the package path relative to the module root.
-// modRoot is a path from root dir to this project like: `/Users/username/project`
-// fullPath is a full path to package  like `/Users/username/project/pkg/destination`
-// returns relative path to package project/pkg/destination
-func (*Locator) RelativePackagePath(modRoot string, fullPath string) (string, error) {
-	slog.Debug("RelativePackagePath", slog.String("modRoot", modRoot), slog.String("fullPath", fullPath))
+// RelativePackagePath returns the package directory path relative to the module root.
+// modRoot is the absolute path to the module root, e.g. `/Users/username/project`
+// fullPath is the absolute path to the package directory, e.g. `/Users/username/project/pkg/destination`
+// returns the relative package path, e.g. `pkg/destination`
+func (l *Locator) RelativePackagePath(modRoot string, fullPath string) (string, error) {
+	slog.Debug(
+		"RelativePackagePath",
+		slog.String("modRoot", modRoot),
+		slog.String("fullPath", fullPath),
+	)
 	result, err := filepath.Rel(modRoot, fullPath)
 	if err != nil {
-		return "", err
+		return "", tracerr.Errorf(
+			"modRoot %q, fullPath %q: %w: %w",
+			modRoot,
+			fullPath,
+			ErrFailToGetRelPackagePath,
+			err,
+		)
 	}
 	slog.Debug(
 		"RelativePackagePath",
 		slog.String("result", result),
 	)
 
-	return filepath.Dir(result), nil
+	return result, nil
 }
