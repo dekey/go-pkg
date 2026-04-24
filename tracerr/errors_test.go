@@ -165,14 +165,12 @@ func TestWrap(t *testing.T) {
 				require.ErrorIs(t, result, traced)
 			},
 		},
-		// errors.As traverses the chain and returns the inner Error,
-		// silently discarding the outer fmt.Errorf context message.
-		"traceable wrapped in fmt.Errorf loses outer context": {
+		"traceable wrapped in fmt.Errorf preserves outer context": {
 			err: outerWrapped,
 			assert: func(t *testing.T, result tracerr.Error) {
 				t.Helper()
 				require.NotNil(t, result)
-				require.Equal(t, "traced error", result.Error())
+				require.Equal(t, "context: traced error", result.Error())
 				require.NotEmpty(t, result.StackTrace())
 				require.Contains(t, result.StackTrace()[0].Func, "TestWrap")
 				require.ErrorIs(t, result, traced)

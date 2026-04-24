@@ -32,10 +32,13 @@ func Wrap(err error) Error {
 	if err == nil {
 		return nil
 	}
-	var e Error
-	ok := errors.As(err, &e)
-	if ok {
+	if e, ok := err.(Error); ok { //nolint:errorlint // intentional: check only the top of the chain, not wrapped errors
 		return e
+	}
+
+	var e Error
+	if errors.As(err, &e) {
+		return &errorData{err: err, frames: e.StackTrace()}
 	}
 	return trace(err, DefaultSkip)
 }
