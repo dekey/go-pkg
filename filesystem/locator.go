@@ -119,9 +119,10 @@ func (l *Locator) ReadModulePath(root string) (string, error) {
 		line = strings.TrimSpace(line)
 		if after, ok := strings.CutPrefix(line, "module "); ok {
 			mod := strings.TrimSpace(after)
-			// strip quotes if any
+			if i := strings.Index(mod, "//"); i != -1 {
+				mod = strings.TrimSpace(mod[:i])
+			}
 			mod = strings.Trim(mod, "\"`")
-			// drop trailing .git if present
 			mod = strings.TrimSuffix(mod, ".git")
 
 			return mod, nil

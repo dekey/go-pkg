@@ -112,7 +112,9 @@ func TestLocator_FindRootDirWithGoMod(t *testing.T) {
 				_, thisFile, _, ok := runtime.Caller(0)
 				require.True(t, ok)
 
-				require.True(t, strings.HasPrefix(thisFile, dir))
+				absTestFile, err := filepath.Abs(thisFile)
+				require.NoError(t, err)
+				require.True(t, strings.HasPrefix(absTestFile, dir))
 
 				_, statErr := os.Stat(filepath.Join(dir, "go.mod"))
 				require.NoError(t, statErr)
@@ -321,6 +323,38 @@ func TestLocator_ReadModulePath(t *testing.T) {
 				require.NoError(t, os.WriteFile(
 					filepath.Join(root, "go.mod"),
 					[]byte("module github.com/user/repo.git\n"),
+					0o600,
+				))
+				return root
+			},
+			assert: func(t *testing.T, got string, err error) {
+				require.NoError(t, err)
+				require.Equal(t, "github.com/user/repo", got)
+			},
+		},
+		{
+			name: "success: trailing inline comment stripped",
+			setup: func(t *testing.T) string {
+				root := t.TempDir()
+				require.NoError(t, os.WriteFile(
+					filepath.Join(root, "go.mod"),
+					[]byte("module github.com/user/repo // comment\n"),
+					0o600,
+				))
+				return root
+			},
+			assert: func(t *testing.T, got string, err error) {
+				require.NoError(t, err)
+				require.Equal(t, "github.com/user/repo", got)
+			},
+		},
+		{
+			name: "success: quoted module path with trailing comment",
+			setup: func(t *testing.T) string {
+				root := t.TempDir()
+				require.NoError(t, os.WriteFile(
+					filepath.Join(root, "go.mod"),
+					[]byte(`module "github.com/user/repo" // comment`+"\n"),
 					0o600,
 				))
 				return root
