@@ -214,27 +214,27 @@ func TestLocator_RelativePackagePath(t *testing.T) {
 		assert   func(t *testing.T, got string, err error)
 	}{
 		{
-			name:     "success: nested package",
+			name:     "success: nested package directory",
 			modRoot:  root,
-			fullPath: filepath.Join(root, "pkg", "foo", "bar.go"),
+			fullPath: filepath.Join(root, "pkg", "foo"),
 			assert: func(t *testing.T, got string, err error) {
 				require.NoError(t, err)
 				require.Equal(t, filepath.Join("pkg", "foo"), got)
 			},
 		},
 		{
-			name:     "success: single-level package",
+			name:     "success: single-level package directory",
 			modRoot:  root,
-			fullPath: filepath.Join(root, "cmd", "main.go"),
+			fullPath: filepath.Join(root, "cmd"),
 			assert: func(t *testing.T, got string, err error) {
 				require.NoError(t, err)
 				require.Equal(t, "cmd", got)
 			},
 		},
 		{
-			name:     "success: top-level file returns dot",
+			name:     "success: root package returns dot",
 			modRoot:  root,
-			fullPath: filepath.Join(root, "main.go"),
+			fullPath: root,
 			assert: func(t *testing.T, got string, err error) {
 				require.NoError(t, err)
 				require.Equal(t, ".", got)

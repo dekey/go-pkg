@@ -130,10 +130,10 @@ func (l *Locator) ReadModulePath(root string) (string, error) {
 	return "", tracerr.Wrap(ErrModulePathNotFound)
 }
 
-// RelativePackagePath returns the package path relative to the module root.
-// modRoot is a path from root dir to this project like: `/Users/username/project`
-// fullPath is a full path to package  like `/Users/username/project/pkg/destination`
-// returns relative path to package project/pkg/destination
+// RelativePackagePath returns the package directory path relative to the module root.
+// modRoot is the absolute path to the module root, e.g. `/Users/username/project`
+// fullPath is the absolute path to the package directory, e.g. `/Users/username/project/pkg/destination`
+// returns the relative package path, e.g. `pkg/destination`
 func (l *Locator) RelativePackagePath(modRoot string, fullPath string) (string, error) {
 	slog.Debug(
 		"RelativePackagePath",
@@ -155,5 +155,5 @@ func (l *Locator) RelativePackagePath(modRoot string, fullPath string) (string, 
 		slog.String("result", result),
 	)
 
-	return filepath.Dir(result), nil
+	return result, nil
 }
