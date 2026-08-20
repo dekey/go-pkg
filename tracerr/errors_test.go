@@ -255,3 +255,41 @@ func TestErrorf(t *testing.T) {
 		})
 	}
 }
+
+// TestErrorfPreservesWrappedTrace prevents outer contextual errors from replacing the
+// trace captured where a traced cause originated. Previously Errorf always captured a
+// new stack at its call site, so Sprint showed the outer wrapper instead of the failure
+// location; this commonly happens after an intermediate fmt.Errorf("...: %w", err).
+func TestErrorfPreservesWrappedTrace(t *testing.T) {
+	tests := map[string]struct {
+		cause func() (tracerr.Error, error)
+		want  string
+	}{
+		"directly wrapped traced error": {
+			cause: func() (tracerr.Error, error) {
+				traced := tracerr.New("cause")
+				return traced, traced
+			},
+			want: "context: cause",
+		},
+		"traced error behind fmt wrapping": {
+			cause: func() (tracerr.Error, error) {
+				traced := tracerr.New("cause")
+				return traced, fmt.Errorf("intermediate: %w", traced)
+			},
+			want: "context: intermediate: cause",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			traced, cause := tt.cause()
+			err := tracerr.Errorf("context: %w", cause)
+
+			require.Equal(t, tt.want, err.Error())
+			require.ErrorIs(t, err, cause)
+			require.Equal(t, traced.StackTrace(), err.StackTrace())
+			require.Contains(t, tracerr.Sprint(err), traced.StackTrace()[0].String())
+		})
+	}
+}
