@@ -14,10 +14,17 @@ type Error interface {
 	Unwrap() error
 }
 
-// Errorf creates new error with stacktrace and formatted message.
+// Errorf creates an error with a stacktrace and formatted message.
+// If the formatted error wraps an existing traced error, its stack trace is preserved.
 // Formatting works the same way as in fmt.Errorf.
 func Errorf(message string, args ...any) Error {
 	err := fmt.Errorf(message, args...)
+
+	var traced Error
+	if errors.As(err, &traced) {
+		return &errorData{err: err, frames: traced.StackTrace()}
+	}
+
 	return trace(err, DefaultSkip)
 }
 
