@@ -20,8 +20,7 @@ type Error interface {
 func Errorf(message string, args ...any) Error {
 	err := fmt.Errorf(message, args...)
 
-	var traced Error
-	if errors.As(err, &traced) {
+	if traced, ok := errors.AsType[Error](err); ok {
 		return &errorData{err: err, frames: traced.StackTrace()}
 	}
 
@@ -43,8 +42,7 @@ func Wrap(err error) Error {
 		return e
 	}
 
-	var e Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[Error](err); ok {
 		return &errorData{err: err, frames: e.StackTrace()}
 	}
 	return trace(err, DefaultSkip)

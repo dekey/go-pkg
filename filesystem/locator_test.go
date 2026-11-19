@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	fs "github.com/dekey/go-pkg/filesystem"
 	"github.com/stretchr/testify/require"
@@ -438,6 +439,87 @@ func TestLocator_ReadModulePath(t *testing.T) {
 			root := tc.setup(t)
 			got, err := locator.ReadModulePath(root)
 			tc.assert(t, got, err)
+		})
+	}
+}
+
+func TestLocator_FindRootDirFromStartFolders(t *testing.T) {
+	type walkResult struct {
+		dir string
+		err error
+	}
+
+	testCases := []struct {
+		name     string
+		file     string
+		startDir func(t *testing.T, file string) string
+		assert   func(t *testing.T, startDir string, got string, err error)
+	}{
+		{
+			name: "relative start folder without the file ends with not found instead of looping",
+			file: "___definitely_not_existing___.txt",
+			startDir: func(t *testing.T, _ string) string {
+				t.Chdir(t.TempDir())
+				t.Setenv("GOPATH", t.TempDir())
+				return "."
+			},
+			assert: func(t *testing.T, startDir string, got string, err error) {
+				require.ErrorIs(t, err, fs.ErrFailToFindRootDir, "FindRootDirFrom(%q) = %q", startDir, got)
+				require.Empty(t, got, "FindRootDirFrom(%q)", startDir)
+			},
+		},
+		{
+			name: "start folder that holds the file is the root",
+			file: "root-marker.txt",
+			startDir: func(t *testing.T, file string) string {
+				root := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(root, file), nil, 0o600))
+				return root
+			},
+			assert: func(t *testing.T, startDir string, got string, err error) {
+				require.NoError(t, err, "FindRootDirFrom(%q) skips the start folder that holds the file", startDir)
+				require.Equal(t, startDir, got, "FindRootDirFrom(%q)", startDir)
+			},
+		},
+		{
+			name: "folder that can not be searched is never returned as the root",
+			file: "root-marker.txt",
+			startDir: func(t *testing.T, file string) string {
+				if os.Geteuid() == 0 {
+					t.Skip("root can search a folder with mode 000, so the walk can not hit a permission error")
+				}
+				root := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(root, file), nil, 0o600))
+				locked := filepath.Join(root, "locked")
+				require.NoError(t, os.MkdirAll(filepath.Join(locked, "x"), 0o700))
+				require.NoError(t, os.Chmod(locked, 0o000))
+				t.Cleanup(func() {
+					require.NoError(t, os.Chmod(locked, 0o700))
+				})
+				return filepath.Join(locked, "x")
+			},
+			assert: func(t *testing.T, startDir string, got string, err error) {
+				locked := filepath.Dir(startDir)
+				require.NotEqual(t, locked, got, "FindRootDirFrom(%q) = %q, %v", startDir, got, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			startDir := tc.startDir(t, tc.file)
+			locator := fs.NewLocator()
+			done := make(chan walkResult, 1)
+			go func() {
+				dir, err := locator.FindRootDirFrom(startDir, tc.file)
+				done <- walkResult{dir: dir, err: err}
+			}()
+			select {
+			case got := <-done:
+				tc.assert(t, startDir, got.dir, got.err)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("FindRootDirFrom(%q, %q) still running after 2s: endless loop", startDir, tc.file)
+			}
 		})
 	}
 }

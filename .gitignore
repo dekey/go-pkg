@@ -38,3 +38,4 @@ data/*
 .mcp.local.json
 .agent
 .codex
+.code-intelligence
