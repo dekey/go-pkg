@@ -16,9 +16,10 @@ The `filesystem` package provides a `Locator` that can:
 
 ### File Helpers
 The `filesystem` package also has small helpers for files and paths, made for Linux and macOS. They need only the standard library and `tracerr`. Their errors carry a stack trace and keep the `os` error inside when there is one, so `errors.Is` works with errors such as `os.ErrNotExist` and with the `Err` values of the package.
-- `Writer` (from `NewWriter`) with the methods `WriteTemp`, `Remove`: write data to a new temp file in a folder with an exact file mode, and remove it again.
-- `Writer` methods `CreateFile`, `OpenFile`, `AppendLine`: open a file for reading and writing and make it when it is missing (a file that is there keeps its content), open a file with your own flag used as given, or append one line to a file in one write (a missing file is made). None of them makes folders.
-- `Reader` (from `NewReader`) with the methods `OpenFile`, `LastLines`: open a file for reading only (a missing file is never made), or read the last n lines of a file, like `tail -n`.
+- `Writer` (from `NewWriter`, which takes an `Opener`: pass `NewReader()`) with the methods `WriteTemp`, `Remove`: write data to a new temp file in a folder with an exact file mode, and remove it again.
+- `Opener`: the interface `NewWriter` takes, with one method, `OpenFile(path, flag)`. A `*Reader` is one; pass your own only when you need other open behaviour, for example in a test.
+- `Writer` methods `CreateFile`, `AppendLine`: open a file for reading and writing and make it when it is missing (a file that is there keeps its content), or append one line to a file in one write (a missing file is made). Both open the file through the `Opener`; with `NewReader()` neither makes folders.
+- `Reader` (from `NewReader`) with the methods `OpenFile`, `LastLines`: open a file with your own flag used as given, like `os.OpenFile` (a missing file is made only with `os.O_CREATE`, a folder never), or read the last n lines of a file, like `tail -n`.
 - `Path` (from `NewPath`) with the methods `Absolute`, `Real`, `RealDir`: make a path absolute, or absolute with every link resolved.
 - `Writer` method `LinkFirstFree`: hard link a file to the first free name (`report.txt`, `report-2.txt`, ...), never over another file.
 

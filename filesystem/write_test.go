@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	fs "github.com/dekey/go-pkg/filesystem"
+	"github.com/dekey/go-pkg/filesystem/internal/mocks"
 	"github.com/dekey/go-pkg/tracerr"
 	"github.com/stretchr/testify/require"
 )
@@ -668,15 +669,21 @@ func TestLinkFirstFreeLinksTempToTheFirstFreeNameAndNeverReplacesAFile(t *testin
 	}
 }
 
+var errOpenRefused = errors.New("open refused")
+
 func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name   string
+		opener func(t *testing.T, path string) fs.Opener
 		path   func(t *testing.T, root string) string
 		assert func(t *testing.T, path string, file *os.File, err error)
 	}{
 		{
 			name: "missing file is made empty with mode 644 and the returned file writes and reads it back",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data", "notes.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -702,6 +709,9 @@ func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) 
 		},
 		{
 			name: "file that is there keeps its content and its mode 600 and the returned file reads and writes it",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data", "notes.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -726,6 +736,9 @@ func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) 
 		},
 		{
 			name: "missing folder gives the not exist error with a stack trace from OpenFile and makes nothing",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(_ *testing.T, root string) string {
 				return filepath.Join(root, "data", "notes.txt")
 			},
@@ -752,6 +765,9 @@ func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) 
 		},
 		{
 			name: "folder in place of the file gives the open is a directory error from OpenFile",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data")
 				require.NoError(t, os.Mkdir(path, 0o755))
@@ -781,6 +797,9 @@ func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) 
 		},
 		{
 			name: "file in place of the folder gives the not a directory error with a stack trace from OpenFile",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				require.NoError(t, os.WriteFile(filepath.Join(root, "file"), nil, 0o600))
 				return filepath.Join(root, "file", "data", "notes.txt")
@@ -802,12 +821,36 @@ func TestCreateFileOpensForReadAndWriteAndMakesOnlyTheMissingFile(t *testing.T) 
 				require.Empty(t, data, "CreateFile(%q) wrote to the file in place of the folder", path)
 			},
 		},
+		{
+			name: "plain error of an Opener asked once for read write create gets a stack trace from CreateFile",
+			opener: func(t *testing.T, path string) fs.Opener {
+				opener := mocks.NewOpener(t)
+				opener.On("OpenFile", path, os.O_RDWR|os.O_CREATE).Return(nil, errOpenRefused).Once()
+				return opener
+			},
+			path: func(_ *testing.T, root string) string {
+				return filepath.Join(root, "data", "notes.txt")
+			},
+			assert: func(t *testing.T, path string, file *os.File, err error) {
+				require.ErrorIs(t, err, errOpenRefused, "CreateFile(%q) error", path)
+				frames := tracerr.StackTrace(err)
+				require.NotEmpty(t, frames, "CreateFile(%q) error %v has no stack trace", path, err)
+				require.Equal(
+					t,
+					"github.com/dekey/go-pkg/filesystem.(*Writer).CreateFile",
+					frames[0].Func,
+					"CreateFile(%q)",
+					path,
+				)
+				require.Nil(t, file, "CreateFile(%q) file", path)
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			path := tc.path(t, t.TempDir())
-			writer := fs.NewWriter(fs.NewReader())
+			writer := fs.NewWriter(tc.opener(t, path))
 			file, err := writer.CreateFile(path)
 			tc.assert(t, path, file, err)
 		})
@@ -818,12 +861,16 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name   string
+		opener func(t *testing.T, path string) fs.Opener
 		path   func(t *testing.T, root string) string
 		run    func(writer *fs.Writer, path string) error
 		assert func(t *testing.T, path string, err error)
 	}{
 		{
 			name: "lines are added in order after the content that is there and no newline is added",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data", "notes.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -848,6 +895,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "missing file in an existing folder is made with mode 644 and holds exactly the line",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data", "notes.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -871,6 +921,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "file that is there keeps its mode 600 when the line is added",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data", "notes.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -892,6 +945,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "missing folder gives the not exist error with a stack trace from OpenFile and makes nothing",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(_ *testing.T, root string) string {
 				return filepath.Join(root, "data", "notes.txt")
 			},
@@ -923,6 +979,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "folder in place of the file gives the open is a directory error from OpenFile",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "data")
 				require.NoError(t, os.Mkdir(path, 0o755))
@@ -957,6 +1016,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "file in place of the folder gives the not a directory error with a stack trace from OpenFile",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				require.NoError(t, os.WriteFile(filepath.Join(root, "file"), nil, 0o600))
 				return filepath.Join(root, "file", "data", "notes.txt")
@@ -985,6 +1047,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "full device gives the no space write error with a stack trace from AppendLine",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, _ string) string {
 				if _, err := os.Stat("/dev/full"); err != nil {
 					t.Skip("no /dev/full on this system")
@@ -1016,6 +1081,9 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 		},
 		{
 			name: "20 writers appending 100 lines each at once give only whole lines and 100 per writer",
+			opener: func(_ *testing.T, _ string) fs.Opener {
+				return fs.NewReader()
+			},
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "shared", "lines.txt")
 				require.NoError(t, os.Mkdir(filepath.Dir(path), 0o755))
@@ -1065,12 +1133,41 @@ func TestAppendLineAddsTheLineAsGivenToTheEndInOneWrite(t *testing.T) {
 				require.Len(t, distinct, 2000, "AppendLine(%q) distinct lines", path)
 			},
 		},
+		{
+			name: "plain error of an Opener asked once for append write only create gets a stack trace from AppendLine",
+			opener: func(t *testing.T, path string) fs.Opener {
+				opener := mocks.NewOpener(t)
+				opener.On("OpenFile", path, os.O_APPEND|os.O_WRONLY|os.O_CREATE).Return(nil, errOpenRefused).Once()
+				return opener
+			},
+			path: func(_ *testing.T, root string) string {
+				return filepath.Join(root, "data", "notes.txt")
+			},
+			run: func(writer *fs.Writer, path string) error {
+				if err := writer.AppendLine(path, "line\n"); err != nil {
+					return err
+				}
+				return nil
+			},
+			assert: func(t *testing.T, path string, err error) {
+				require.ErrorIs(t, err, errOpenRefused, "AppendLine(%q) error", path)
+				frames := tracerr.StackTrace(err)
+				require.NotEmpty(t, frames, "AppendLine(%q) error %v has no stack trace", path, err)
+				require.Equal(
+					t,
+					"github.com/dekey/go-pkg/filesystem.(*Writer).AppendLine",
+					frames[0].Func,
+					"AppendLine(%q)",
+					path,
+				)
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			path := tc.path(t, t.TempDir())
-			writer := fs.NewWriter(fs.NewReader())
+			writer := fs.NewWriter(tc.opener(t, path))
 			err := tc.run(writer, path)
 			tc.assert(t, path, err)
 		})

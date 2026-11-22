@@ -140,9 +140,26 @@ Runnable examples: `ExampleWriter_WriteTemp`, `ExampleWriter_LinkFirstFree` and
 [read_test.go](read_test.go). `go test` runs them and checks their output. `go doc` does not show
 them: it does not read test files.
 
-### Temp files: `Writer.WriteTemp`, `Writer.Remove`
+### Make a Writer: `NewWriter`, `Opener`
 
-`NewWriter()` returns a `*Writer`; like `Locator`, `Path` and `Reader`, it holds no state.
+`NewWriter(opener)` returns a `*Writer` that opens files through `opener`. Pass
+`filesystem.NewReader()`:
+
+```go
+w := filesystem.NewWriter(filesystem.NewReader())
+```
+
+`Opener` is an interface with one method, `OpenFile(path, flag)`, which opens a file like
+`os.OpenFile` and returns the `*os.File`. A `*Reader` is one (see
+[`Reader`](#open-a-file-and-read-its-last-lines-reader)). `CreateFile` and `AppendLine` open files
+only through the `Opener`; `WriteTemp`, `Remove` and `LinkFirstFree` do not use it. Apart from its
+`Opener`, a `Writer` holds no state.
+
+Pass your own `Opener` only when you need other open behaviour, for example in a test. When its
+error has no `tracerr` stack trace, `CreateFile` or `AppendLine` adds one. The text below describes
+a `Writer` with `NewReader()` as its `Opener`.
+
+### Temp files: `Writer.WriteTemp`, `Writer.Remove`
 
 - `w.WriteTemp(dir, pattern, data, perm)` writes `data` to a new file in `dir`, syncs it to the disk
   and returns its path. An empty `dir` means `os.TempDir()`. The file name comes from `pattern` as
@@ -165,7 +182,7 @@ file. `os.Rename` works only within one file system; across file systems it fail
 itself to survive a power loss, also open the folder and call `Sync` on it.
 
 ```go
-w := filesystem.NewWriter()
+w := filesystem.NewWriter(filesystem.NewReader())
 temp, err := w.WriteTemp(dir, ".config.json.*", data, 0o644)
 if err != nil {
     return err
@@ -177,19 +194,18 @@ if err := os.Rename(temp, filepath.Join(dir, "config.json")); err != nil {
 return nil
 ```
 
-### Open and create files: `Writer.CreateFile`, `Writer.OpenFile`
+### Open or make a file: `Writer.CreateFile`
 
-- `w.CreateFile(path)` opens the file for reading and writing. A missing file is made; a file that
-  is there is opened as it is, with its content and mode kept.
-- `w.OpenFile(path, flag)` opens the file with `flag` exactly as given, like `os.OpenFile`. It
-  makes a missing file only when `flag` holds `os.O_CREATE`; without it a missing file gives an
-  error that matches `os.ErrNotExist`.
+`w.CreateFile(path)` opens the file for reading and writing, through its `Opener` with
+`os.O_RDWR|os.O_CREATE`. So it works like
+[`r.OpenFile`](#open-a-file-and-read-its-last-lines-reader) with that flag: a missing file is made
+with mode 644, less the bits the umask takes off; a file that is there is opened as it is, with its
+content and mode kept.
 
-A new file gets mode 644, less the bits the umask takes off. A file that is there keeps its mode.
-The folder of `path` must exist: neither of them makes folders. Make a new folder first, for
+The folder of `path` must exist: `CreateFile` never makes folders. Make a new folder first, for
 example with `os.MkdirAll`. The caller closes the file.
 
-Errors: no `Err` value of their own.
+Errors: no `Err` value of its own.
 
 - A missing folder gives an error that matches `os.ErrNotExist`, and nothing is made.
 - A file in place of the folder gives an error that matches `syscall.ENOTDIR`.
@@ -204,15 +220,16 @@ write, so on a local file system lines of processes that append to the same file
 do not mix. This does not hold on a network file system such as NFS, or for a line longer than
 1 GiB, which Go writes in parts.
 
-`AppendLine` opens the file with `w.OpenFile` and `os.O_CREATE`, so a missing file is made with
-mode 644, less the bits the umask takes off. Like `OpenFile`, it never makes folders.
+`AppendLine` opens the file through its `Opener` with `os.O_APPEND|os.O_WRONLY|os.O_CREATE`, so a
+missing file is made with mode 644, less the bits the umask takes off. Like `CreateFile`, it never
+makes folders.
 
-Errors: no `Err` value of its own. An open error comes from `OpenFile` (see above); `AppendLine`
-passes it on as it is. `AppendLine` also gives the write or close error as the `os` package gives
-it.
+Errors: no `Err` value of its own. An open error is the same as for `CreateFile` (see
+[Open or make a file](#open-or-make-a-file-writercreatefile)); `AppendLine` passes it on.
+`AppendLine` also gives the write or close error as the `os` package gives it.
 
 ```go
-w := filesystem.NewWriter()
+w := filesystem.NewWriter(filesystem.NewReader())
 path := filepath.Join(dir, "history", "events.txt")
 if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
     return err
@@ -225,11 +242,15 @@ return nil
 
 ### Open a file and read its last lines: `Reader`
 
-`NewReader()` returns a `*Reader`; like `Locator` and `Path`, it holds no state.
+`NewReader()` returns a `*Reader`; like `Locator` and `Path`, it holds no state. It is the usual
+`Opener` of a `Writer`.
 
-`r.OpenFile(path)` opens the file for reading only, like `os.Open`. It never makes a file: a missing
-file gives an error that matches `os.ErrNotExist` (no `Err` value of its own), and nothing is made.
-The caller closes the file.
+`r.OpenFile(path, flag)` opens the file with `flag` as given, like `os.OpenFile`: for example
+`os.O_RDONLY` to read, or `os.O_APPEND|os.O_WRONLY|os.O_CREATE` to append. With `os.O_CREATE` a
+missing file is made with mode 644, less the bits the umask takes off; a file that is there keeps
+its mode. Without `os.O_CREATE` a missing file gives an error that matches `os.ErrNotExist` (no
+`Err` value of its own), and nothing is made. It never makes folders: a missing folder gives an
+error that matches `os.ErrNotExist`. The caller closes the file.
 
 `r.LastLines(path, n)` returns the last `n` lines of the file, like `tail -n`. Lines end at `\n` and
 come back without it; a `\r` before the `\n` stays. A final newline does not start a new line. An
@@ -314,7 +335,7 @@ the link is made but the temp file can not be removed, the new file is still the
 path:
 
 ```go
-w := filesystem.NewWriter()
+w := filesystem.NewWriter(filesystem.NewReader())
 temp, err := w.WriteTemp(dir, ".report.*", data, 0o644)
 if err != nil {
     return "", err

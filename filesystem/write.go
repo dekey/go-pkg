@@ -15,16 +15,18 @@ var (
 	ErrNoFreeName = errors.New("no free name")
 )
 
-// Writer writes temp files, links them to a free name, opens and makes files and appends lines to
-// files. It holds no state.
+// Writer writes temp files, links them to a free name, removes files, opens or makes files and
+// appends lines to files. It holds only its Opener, which CreateFile and AppendLine open files
+// with.
 type Writer struct {
-	reader reader
+	opener Opener
 }
 
-// NewWriter returns a new Writer.
-func NewWriter(reader reader) *Writer {
+// NewWriter returns a new Writer that opens files with opener. Pass NewReader() unless you need
+// another Opener.
+func NewWriter(opener Opener) *Writer {
 	return &Writer{
-		reader: reader,
+		opener: opener,
 	}
 }
 
@@ -50,7 +52,9 @@ func (w *Writer) WriteTemp(dir string, pattern string, data []byte, perm os.File
 	syncErr := temp.Sync()
 	closeErr := temp.Close()
 	if err := errors.Join(writeErr, chmodErr, syncErr, closeErr); err != nil {
-		removeErr := w.Remove(temp.Name())
+		// os.Remove, not Remove: tracerr.Wrap would take the stack trace of the error of Remove from
+		// inside the join, and the stack trace must start in WriteTemp.
+		removeErr := os.Remove(temp.Name())
 		return "", tracerr.Wrap(errors.Join(err, removeErr))
 	}
 	return temp.Name(), nil
@@ -103,28 +107,31 @@ func (w *Writer) Remove(path string) error {
 	return nil
 }
 
-// CreateFile opens the file at path for reading and writing. A missing file is made with mode 644,
-// less the bits the umask of the process takes off; a file that is there is opened as it is, with
-// its content and mode kept. CreateFile never makes folders: a missing folder gives an error that
-// matches os.ErrNotExist, and nothing is made. The caller closes the file.
+// CreateFile opens the file at path for reading and writing through the Opener, with
+// os.O_RDWR|os.O_CREATE. With a Reader as the Opener (see [Reader.OpenFile]), a missing file is made
+// with mode 644, less the bits the umask of the process takes off, and a file that is there is
+// opened as it is, with its content and mode kept; no folder is made: a missing folder gives an
+// error that matches os.ErrNotExist, and nothing is made. The caller closes the file.
 func (w *Writer) CreateFile(path string) (*os.File, error) {
-	file, err := w.reader.OpenFile(path, os.O_RDWR|os.O_CREATE)
+	file, err := w.opener.OpenFile(path, os.O_RDWR|os.O_CREATE)
 	if err != nil {
 		return nil, tracerr.Wrap(err)
 	}
 	return file, nil
 }
 
-// AppendLine appends line to the end of the file at path and makes the file when it is missing
-// (see OpenFile). It writes line as given and adds no newline: end it with \n.
+// AppendLine appends line to the end of the file at path. It opens the file through the Opener with
+// os.O_APPEND|os.O_WRONLY|os.O_CREATE, so with a Reader as the Opener (see [Reader.OpenFile]) a
+// missing file is made and no folder is. It writes line as given and adds no newline: end it with
+// \n.
 //
 // The file is opened with os.O_APPEND and the line goes out in one write, so on a local file system
 // lines of processes that append to the same file at the same time do not mix. This does not hold
 // on a network file system such as NFS, or for a line longer than 1 GiB, which Go writes in parts.
 func (w *Writer) AppendLine(path string, line string) error {
-	file, err := w.reader.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE)
+	file, err := w.opener.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE)
 	if err != nil {
-		return err
+		return tracerr.Wrap(err)
 	}
 	_, writeErr := file.WriteString(line)
 	closeErr := file.Close()

@@ -14,7 +14,8 @@ import (
 // tailChunk is how many bytes are read per step from the end of the file.
 const tailChunk = 64 << 10
 
-// Reader opens files for reading and reads their last lines. It holds no state.
+// Reader opens files with the flag given and reads their last lines. It is the usual Opener of a
+// Writer. It holds no state.
 type Reader struct{}
 
 // NewReader returns a new Reader.
@@ -22,8 +23,12 @@ func NewReader() *Reader {
 	return &Reader{}
 }
 
-// OpenFile opens the file at path for reading only, like os.Open. It never makes a file: a missing
-// file gives an error that matches os.ErrNotExist, and nothing is made. The caller closes the file.
+// OpenFile opens the file at path with flag as given, like os.OpenFile: os.O_RDONLY to read,
+// os.O_APPEND|os.O_WRONLY|os.O_CREATE to append. With os.O_CREATE a missing file is made with mode
+// 644, less the bits the umask of the process takes off; a file that is there keeps its mode.
+// Without os.O_CREATE a missing file gives an error that matches os.ErrNotExist, and nothing is
+// made. OpenFile never makes folders: a missing folder gives an error that matches os.ErrNotExist.
+// The caller closes the file.
 func (r *Reader) OpenFile(path string, flag int) (*os.File, error) {
 	var perm os.FileMode
 	if flag&os.O_CREATE != 0 {
