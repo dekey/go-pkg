@@ -11,11 +11,9 @@ import (
 	"github.com/dekey/go-pkg/tracerr"
 )
 
-// tailChunk is how many bytes are read per step from the end of the file.
 const tailChunk = 64 << 10
 
-// Reader opens files with the flag given and reads their last lines. It is the usual Opener of a
-// Writer. It holds no state.
+// Reader opens files and reads their last lines.
 type Reader struct{}
 
 // NewReader returns a new Reader.
@@ -23,12 +21,8 @@ func NewReader() *Reader {
 	return &Reader{}
 }
 
-// OpenFile opens the file at path with flag as given, like os.OpenFile: os.O_RDONLY to read,
-// os.O_APPEND|os.O_WRONLY|os.O_CREATE to append. With os.O_CREATE a missing file is made with mode
-// 644, less the bits the umask of the process takes off; a file that is there keeps its mode.
-// Without os.O_CREATE a missing file gives an error that matches os.ErrNotExist, and nothing is
-// made. OpenFile never makes folders: a missing folder gives an error that matches os.ErrNotExist.
-// The caller closes the file.
+// OpenFile opens the file at path with flag as given; the caller closes it. os.O_CREATE makes a
+// missing file with mode 644 less the umask; other missing paths give os.ErrNotExist.
 func (r *Reader) OpenFile(path string, flag int) (*os.File, error) {
 	var perm os.FileMode
 	if flag&os.O_CREATE != 0 {
@@ -42,16 +36,8 @@ func (r *Reader) OpenFile(path string, flag int) (*os.File, error) {
 	return file, nil
 }
 
-// LastLines returns the last n lines of the file at path, like tail -n. Lines end at \n and come
-// back without it; a \r before the \n stays. A final newline does not start a new line. An empty
-// file, or n of 0 or less, gives no lines (nil). A folder gives an error that matches
-// syscall.EISDIR.
-//
-// LastLines reads the file backwards from its end, so a long file costs only its tail. It trusts
-// the size the file reports: a file that reports size 0, such as a named pipe, a device or a file
-// in /proc, gives no lines. LastLines waits as long as opening the file waits: on a named pipe with
-// no writer it waits until a writer opens the pipe. When the file gets shorter while LastLines
-// reads it, the error matches io.EOF.
+// LastLines returns the last n lines of the file at path without their "\n" ("\r" stays).
+// A folder gives syscall.EISDIR; a file that reports size 0, such as one in /proc, gives no lines.
 func (r *Reader) LastLines(path string, n int) ([]string, error) {
 	file, err := r.OpenFile(path, os.O_RDONLY)
 	if err != nil {
@@ -72,9 +58,6 @@ func (r *Reader) LastLines(path string, n int) ([]string, error) {
 	return lines, nil
 }
 
-// readTail reads the file backwards in chunks until it holds more than n newlines or the whole
-// file, so a long file costs only its tail. For n of 0 or less it reads nothing. A folder gives
-// syscall.EISDIR also when its size reads as 0.
 func (r *Reader) readTail(file *os.File, n int) ([]byte, error) {
 	info, err := file.Stat()
 	if err != nil {
@@ -83,8 +66,7 @@ func (r *Reader) readTail(file *os.File, n int) ([]byte, error) {
 	if info.IsDir() {
 		return nil, &os.PathError{Op: "read", Path: file.Name(), Err: syscall.EISDIR}
 	}
-	// Chunks are kept last first and joined once, and only a new chunk is counted, so the cost
-	// grows with the tail size, not with its square.
+	// Joined once at the end: prepending each chunk would cost the tail size squared.
 	var chunks [][]byte
 	newlines := 0
 	offset := info.Size()

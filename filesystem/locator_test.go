@@ -26,16 +26,13 @@ func TestLocator_FindRootDir(t *testing.T) {
 			assert: func(t *testing.T, dir string, err error) {
 				require.NoError(t, err)
 
-				// Get current test file location
 				_, thisFile, _, ok := runtime.Caller(0)
 				require.True(t, ok)
 
-				// Verify returned dir is a parent of this test file
 				absTestFile, err := filepath.Abs(thisFile)
 				require.NoError(t, err)
 				require.True(t, strings.HasPrefix(absTestFile, dir))
 
-				// Verify go.mod exists
 				_, statErr := os.Stat(filepath.Join(dir, "go.mod"))
 				require.NoError(t, statErr)
 
@@ -45,7 +42,6 @@ func TestLocator_FindRootDir(t *testing.T) {
 
 				require.NoError(t, r.Close())
 
-				// Verify path is clean
 				require.Equal(t, filepath.Clean(dir), dir)
 				require.NotContains(t, dir, "..")
 				require.NotContains(t, dir, string(filepath.Separator)+"."+string(filepath.Separator))
@@ -482,7 +478,7 @@ func TestLocator_FindRootDirFromStartFolders(t *testing.T) {
 			},
 		},
 		{
-			name: "folder that can not be searched is never returned as the root",
+			name: "folder that can not be searched is passed and the walk goes on to the root",
 			file: "root-marker.txt",
 			startDir: func(t *testing.T, file string) string {
 				if os.Geteuid() == 0 {
@@ -500,7 +496,8 @@ func TestLocator_FindRootDirFromStartFolders(t *testing.T) {
 			},
 			assert: func(t *testing.T, startDir string, got string, err error) {
 				locked := filepath.Dir(startDir)
-				require.NotEqual(t, locked, got, "FindRootDirFrom(%q) = %q, %v", startDir, got, err)
+				require.NoError(t, err, "FindRootDirFrom(%q) stops at the folder it can not search", startDir)
+				require.Equal(t, filepath.Dir(locked), got, "FindRootDirFrom(%q)", startDir)
 			},
 		},
 	}

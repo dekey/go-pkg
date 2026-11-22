@@ -5,23 +5,16 @@ import (
 	"runtime"
 )
 
-// DefaultCap is the initial capacity of the frames slice allocated in trace.
-// Pre-allocating avoids repeated heap growth when the stack depth is typical;
-// tune it to the expected call depth of your application for best performance.
+// DefaultCap is the starting capacity of the frames slice of a trace.
 const DefaultCap = 20
 
-// DefaultFrameLimit is the maximum number of stack frames captured per error.
-// Prevents unbounded loop iteration in trace when the call stack is unusually deep
-// or runtime.Caller never returns ok=false (e.g. in tests or recursive code).
+// DefaultFrameLimit is the most stack frames captured per error.
 const DefaultFrameLimit = 50
 
 // Frame is a single step in stack trace.
 type Frame struct {
-	// Func contains a function name.
 	Func string
-	// Line contains a line number.
 	Line int
-	// Path contains a file path.
 	Path string
 }
 
@@ -36,23 +29,21 @@ func (f Frame) String() string {
 }
 
 type errorData struct {
-	// err contains original error.
-	err error
-	// frames contains stack trace of an error.
+	err    error
 	frames []Frame
 }
 
-// Error returns error message.
+// Error returns the message of the wrapped error.
 func (e *errorData) Error() string {
 	return e.err.Error()
 }
 
-// StackTrace returns stack trace of an error.
+// StackTrace returns the stack trace saved for the error.
 func (e *errorData) StackTrace() []Frame {
 	return e.frames
 }
 
-// Unwrap returns the original error.
+// Unwrap returns the wrapped error.
 func (e *errorData) Unwrap() error {
 	return e.err
 }

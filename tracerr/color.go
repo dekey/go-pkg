@@ -2,8 +2,7 @@ package tracerr
 
 import "fmt"
 
-// Colorize outputs using [ANSI Escape Codes](https://en.wikipedia.org/wiki/ANSI_escape_code)
-
+// color puts the ANSI color code before in and a reset after it.
 func color(code int, in string) string {
 	return fmt.Sprintf("\x1b[%dm%s\x1b[0m", code, in)
 }

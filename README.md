@@ -22,6 +22,7 @@ The `filesystem` package also has small helpers for files and paths, made for Li
 - `Reader` (from `NewReader`) with the methods `OpenFile`, `LastLines`: open a file with your own flag used as given, like `os.OpenFile` (a missing file is made only with `os.O_CREATE`, a folder never), or read the last n lines of a file, like `tail -n`.
 - `Path` (from `NewPath`) with the methods `Absolute`, `Real`, `RealDir`: make a path absolute, or absolute with every link resolved.
 - `Writer` method `LinkFirstFree`: hard link a file to the first free name (`report.txt`, `report-2.txt`, ...), never over another file.
+- `ErrMakeTemp`, `ErrNoFreeName`: the `Err` values of the file helpers, for `errors.Is`. `WriteTemp` gives `ErrMakeTemp` when the temp file can not be made; `LinkFirstFree` gives `ErrNoFreeName` when every name up to the limit is taken.
 
 Errors and examples: [filesystem/readme.md](filesystem/readme.md).
 
@@ -59,6 +60,7 @@ if err != nil {
 The project includes a `Makefile` for common development tasks:
 
 - `make test`: Run all tests.
+- `make generate`: Run `go generate` to remake the mocks with mockery v3.
 - `make format`: Format the code using `golines`, `gofumpt`, and `go fix`.
 - `make lint`: Run `golangci-lint`.
 - `make add-vendor`: Tidy the module and update the `vendor` directory.

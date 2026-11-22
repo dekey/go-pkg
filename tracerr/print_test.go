@@ -392,10 +392,6 @@ func TestCalcRows(t *testing.T) {
 	}
 }
 
-// TestReadLinesConcurrentCacheMiss exercises the double-checked locking path:
-// multiple goroutines miss the cache simultaneously, call os.ReadFile concurrently,
-// and then race to write. The re-check under the write lock must ensure all
-// goroutines receive consistent results and exactly one entry lands in the cache.
 func TestReadLinesConcurrentCacheMiss(t *testing.T) {
 	tests := map[string]struct {
 		content    string

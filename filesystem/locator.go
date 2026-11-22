@@ -25,7 +25,7 @@ var (
 	ErrFailToReadGoMod         = errors.New("failed to read go.mod")
 )
 
-// Locator locates the project root folder by walking up the file system.
+// Locator finds the project root folder.
 type Locator struct{}
 
 // NewLocator returns a new Locator.
@@ -33,10 +33,8 @@ func NewLocator() *Locator {
 	return &Locator{}
 }
 
-// FindRootDirWithGoMod is a convenience method that calls FindRootDir with the "go.mod" filename.
-// It adds its own stack frame: skipCaller 1 starts from the file of the function that calls
-// FindRootDir, which is this package's own file, so pass 2 to start from the file of the function
-// that calls FindRootDirWithGoMod.
+// FindRootDirWithGoMod is FindRootDir with "go.mod". It adds a stack frame, so skipCaller 2
+// starts from the file of its caller.
 func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	result, err := l.FindRootDir(goModFilename, skipCaller)
 	if err != nil {
@@ -46,20 +44,9 @@ func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	return result, nil
 }
 
-// FindRootDirFrom returns the first folder that holds file, walking up from startDir. When startDir
-// is an existing folder, the walk checks that folder first; for a file, or any path os.Stat fails
-// on, it starts at filepath.Dir(startDir). Then it checks each parent folder in turn. A folder path
-// is cleaned first, so a trailing "/" or "/." makes no difference and the result has no trailing
-// separator. Only a successful os.Stat of the file counts as found; any other Stat error, such as
-// permission denied, means "not here" and the walk goes on.
-//
-// The walk stops before the file system root ("/" on Linux and macOS) and never checks it. It also
-// stops before the GOPATH folder when GOPATH names one folder; a GOPATH that lists several folders
-// stops the walk at none of them. On Windows the volume root, such as C:\, is the last folder
-// checked. When the walk ends without the file, the error wraps ErrFailToFindRootDir.
-//
-// A relative startDir is not made absolute: the walk goes up the path text only, ends after "."
-// (the working folder) and returns a relative folder.
+// FindRootDirFrom returns the nearest folder that holds file, walking up from startDir (checked
+// first when it is an existing folder). It never checks "/" or GOPATH; a relative startDir gives
+// a relative result. Errors match ErrEmptyFileName or ErrFailToFindRootDir.
 func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) {
 	if file == "" {
 		return "", tracerr.Wrap(ErrEmptyFileName)
@@ -78,10 +65,8 @@ func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) 
 	return dir, nil
 }
 
-// FindRootDir returns the first folder that holds file, walking up from the folder of the caller's
-// source file as FindRootDirFrom does. skipCaller counts stack frames as in runtime.Caller: 1
-// starts from the file of the function that calls FindRootDir. A binary built with -trimpath has
-// relative file paths, so the walk then works as for a relative startDir in FindRootDirFrom.
+// FindRootDir is FindRootDirFrom started at the source file of a caller. skipCaller counts frames
+// as in runtime.Caller: 1 is the function that calls FindRootDir.
 func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 	if skipCaller < 0 {
 		return "", tracerr.Wrap(ErrCallerIDIsNegative)
@@ -108,8 +93,6 @@ func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 	return dir, nil
 }
 
-// findRootDir walks up as FindRootDirFrom describes and returns the folder that holds file, or ""
-// when the walk ends without it.
 func (l *Locator) findRootDir(from string, file string) string {
 	dir := filepath.Dir(from)
 	if info, err := os.Stat(from); err == nil && info.IsDir() {
@@ -132,7 +115,7 @@ func (l *Locator) findRootDir(from string, file string) string {
 	return ""
 }
 
-// ReadModulePath reads and returns the module path from the go.mod file at the given root folder.
+// ReadModulePath returns the module path from the go.mod file in root.
 func (l *Locator) ReadModulePath(root string) (string, error) {
 	goModFilePath := filepath.Join(root, goModFilename)
 
@@ -158,11 +141,7 @@ func (l *Locator) ReadModulePath(root string) (string, error) {
 	return "", tracerr.Wrap(ErrModulePathNotFound)
 }
 
-// RelativePackagePath returns the package folder path relative to the module root.
-// modRoot is the absolute path to the module root, e.g. `/Users/username/project`.
-// fullPath is the absolute path to the package folder,
-// e.g. `/Users/username/project/pkg/destination`.
-// It returns the relative package path, e.g. `pkg/destination`.
+// RelativePackagePath returns fullPath relative to the module root modRoot.
 func (l *Locator) RelativePackagePath(modRoot string, fullPath string) (string, error) {
 	slog.Debug(
 		"RelativePackagePath",

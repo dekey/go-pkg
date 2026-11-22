@@ -9,6 +9,7 @@ import (
 
 var ErrSomeError = errors.New("some error")
 
+// DoSomething1 returns ErrSomeError with a stack trace, wrapped by fmt.Errorf.
 func DoSomething1() error {
 	errWithStackTrace := tracerr.Wrap(ErrSomeError)
 

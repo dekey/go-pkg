@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// DefaultSkip is the number of frames Errorf, New and Wrap skip, so a new trace starts at their caller.
 const DefaultSkip = 2
 
 // Error is an error with stack trace.
@@ -14,9 +15,7 @@ type Error interface {
 	Unwrap() error
 }
 
-// Errorf creates an error with a stacktrace and formatted message.
-// If the formatted error wraps an existing traced error, its stack trace is preserved.
-// Formatting works the same way as in fmt.Errorf.
+// Errorf is fmt.Errorf with a stack trace; it keeps the trace of a traced error it wraps.
 func Errorf(message string, args ...any) Error {
 	err := fmt.Errorf(message, args...)
 
@@ -48,8 +47,7 @@ func Wrap(err error) Error {
 	return trace(err, DefaultSkip)
 }
 
-// StackTrace returns stack trace of an error.
-// It will be empty if err is not of type Error.
+// StackTrace returns the stack trace of err, or nil when err holds no Error.
 func StackTrace(err error) []Frame {
 	var e Error
 	ok := errors.As(err, &e)
@@ -72,6 +70,7 @@ func Unwrap(err error) error {
 	return e.Unwrap()
 }
 
+// IsTraceableError reports whether err or an error in its chain has a stack trace.
 func IsTraceableError(err error) bool {
 	if err == nil {
 		return false

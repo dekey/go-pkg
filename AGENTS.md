@@ -5,6 +5,7 @@ This is a multi-package utility library. Each top-level directory is its own pac
 ## Important Caveats
 - `tracerr` — errors with stack traces; imports no other package of this repo
 - `filesystem` — four types and one interface: `Locator` (find the project root), `Path` (absolute and real paths), `Reader` (open a file with the flag given, last lines), `Writer` (temp files, link, remove, create, append a line), and `Opener` (`OpenFile(path, flag)`; `NewWriter` takes one, usually `NewReader()`, and `CreateFile` and `AppendLine` open files through it). No method makes folders. Imports `tracerr`.
+- `Opener` is exported on purpose, though `*Reader` is its only implementation here: callers in other repos pass their own to `NewWriter` (other file modes, a base folder, logging, fake errors in their tests). It is not a test-only interface; do not suggest dropping it. Its `OpenFile` returns `*os.File`, so an Opener can not give in-memory files.
 
 ## Commands
 
@@ -16,7 +17,7 @@ This is a multi-package utility library. Each top-level directory is its own pac
 
 ## Conventions
 
-- Wrap an error with `tracerr` once, in the exported function or method where it starts, so the first frame of the stack trace is that function or method. Forward errors from this repo's own functions as they are.
+- Wrap an error with `tracerr` once, in the exported function or method where it starts, so the first frame of the stack trace is that function or method. Forward errors from this repo's own functions as they are. Exception: `CreateFile` and `AppendLine` wrap the error of their `Opener`, which may come from another repo; `tracerr.Wrap` leaves an error that already has a trace as it is.
 - Sentinel errors are `var ErrXxx = errors.New("...")` with no doc comment; the name and the test names say what failed. Join a sentinel with its cause as `tracerr.Errorf("%w: %w", ErrXxx, err)`, so `errors.Is` matches both.
 - Error texts and names carry no words of a caller (say "no free name", not "no free item name").
 - Tests: `package <pkg>_test` (the `testpackage` linter), `filesystem` imported as `fs`, table tests whose rows are named after the rule they check. `lll` also checks tests. Runnable `Example` funcs sit in the test file of their source file and use the `fs` alias.
@@ -39,4 +40,4 @@ This is a multi-package utility library. Each top-level directory is its own pac
 - `.agent/` (plans and task logs) is git-ignored.
 
 ## Tools
-- The Bash tool runs zsh: quote every glob ('*.go'), never start an unquoted word with =, and add || true after a search where no match is normal. Wiki: /Users/dekey/ai-config/docs/wiki/workflow/tools.md.
+- The Bash tool runs zsh: quote every glob ('*.go'), never start an unquoted word with =, and add || true after a search where no match is normal.

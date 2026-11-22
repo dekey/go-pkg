@@ -71,6 +71,17 @@ func TestAbsoluteKeepsPathComponents(t *testing.T) {
 			},
 		},
 		{
+			name: "relative path from the file system root is joined with one separator",
+			path: func(t *testing.T, _ string) string {
+				t.Chdir("/")
+				return "x"
+			},
+			assert: func(t *testing.T, _ string, path string, got string, err error) {
+				require.NoError(t, err)
+				require.Equal(t, "/x", got, "Absolute(%q) with the working folder /", path)
+			},
+		},
+		{
 			name: "absolute file path stays unchanged",
 			path: func(t *testing.T, root string) string {
 				path := filepath.Join(root, "file")
