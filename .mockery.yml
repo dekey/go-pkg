@@ -1,0 +1,9 @@
+template: testify
+dir: "{{.InterfaceDir}}/internal/mocks"
+filename: "{{.InterfaceName | lower}}.go"
+pkgname: mocks
+structname: "{{.InterfaceName}}"
+packages:
+  github.com/dekey/go-pkg/filesystem:
+    interfaces:
+      Opener:

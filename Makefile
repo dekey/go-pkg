@@ -1,4 +1,4 @@
-.PHONY: help format lint format-lint add-vendor test
+.PHONY: help format lint format-lint add-vendor test generate
 all:
 	@make help
 
@@ -35,3 +35,6 @@ update-dependencies: ## update dependencies
 
 test:
 	go test -parallel=1 -count=1 ./...
+
+generate: ## generate mocks
+	go generate ./...

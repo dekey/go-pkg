@@ -5,9 +5,9 @@ on:
     types: [ opened, synchronize, reopened ]
 
 env:
-  GOLANGCI_LINT_VERSION: v2.13.1
+  GOLANGCI_LINT_VERSION: v2.15.0
   ENV: lint
-  GOLANG_VERSION: '1.26'
+  GOLANG_VERSION: '1.27'
 
 jobs:
   lint:
@@ -27,4 +27,5 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
+          install-mode: goinstall
           args: "--timeout=5m0s"

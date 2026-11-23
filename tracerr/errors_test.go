@@ -248,7 +248,6 @@ func TestErrorf(t *testing.T) {
 
 			frames := err.StackTrace()
 			require.NotEmpty(t, frames)
-			// DefaultSkip=2 must strip trace and Errorf; first frame is the caller.
 			require.Contains(t, frames[0].Func, "TestErrorf")
 
 			require.Equal(t, tt.wantIsWraps, errors.Is(err, sentinel))
@@ -256,10 +255,6 @@ func TestErrorf(t *testing.T) {
 	}
 }
 
-// TestErrorfPreservesWrappedTrace prevents outer contextual errors from replacing the
-// trace captured where a traced cause originated. Previously Errorf always captured a
-// new stack at its call site, so Sprint showed the outer wrapper instead of the failure
-// location; this commonly happens after an intermediate fmt.Errorf("...: %w", err).
 func TestErrorfPreservesWrappedTrace(t *testing.T) {
 	tests := map[string]struct {
 		cause func() (tracerr.Error, error)

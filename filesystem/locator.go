@@ -25,7 +25,7 @@ var (
 	ErrFailToReadGoMod         = errors.New("failed to read go.mod")
 )
 
-// Locator locates the project root directory by traversing the file system upward.
+// Locator finds the project root folder.
 type Locator struct{}
 
 // NewLocator returns a new Locator.
@@ -33,7 +33,8 @@ func NewLocator() *Locator {
 	return &Locator{}
 }
 
-// FindRootDirWithGoMod is a convenience method that calls FindRootDir with the "go.mod" filename.
+// FindRootDirWithGoMod is FindRootDir with "go.mod". It adds a stack frame, so skipCaller 2
+// starts from the file of its caller.
 func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	result, err := l.FindRootDir(goModFilename, skipCaller)
 	if err != nil {
@@ -43,8 +44,9 @@ func (l *Locator) FindRootDirWithGoMod(skipCaller int) (string, error) {
 	return result, nil
 }
 
-// FindRootDirFrom searches for the root directory containing the specified file starting from the given directory and
-// moving upwards.
+// FindRootDirFrom returns the nearest folder that holds file, walking up from startDir (checked
+// first when it is an existing folder). It never checks "/" or GOPATH; a relative startDir gives
+// a relative result. Errors match ErrEmptyFileName or ErrFailToFindRootDir.
 func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) {
 	if file == "" {
 		return "", tracerr.Wrap(ErrEmptyFileName)
@@ -63,8 +65,8 @@ func (l *Locator) FindRootDirFrom(startDir string, file string) (string, error) 
 	return dir, nil
 }
 
-// FindRootDir searches for the root directory containing the specified file starting from the caller's file path
-// and moving upwards.
+// FindRootDir is FindRootDirFrom started at the source file of a caller. skipCaller counts frames
+// as in runtime.Caller: 1 is the function that calls FindRootDir.
 func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 	if skipCaller < 0 {
 		return "", tracerr.Wrap(ErrCallerIDIsNegative)
@@ -93,19 +95,27 @@ func (l *Locator) FindRootDir(file string, skipCaller int) (string, error) {
 
 func (l *Locator) findRootDir(from string, file string) string {
 	dir := filepath.Dir(from)
-	gopath := filepath.Clean(os.Getenv("GOPATH"))
-	for dir != "/" && dir != gopath {
-		envFile := filepath.Join(dir, file)
-		if _, err := os.Stat(envFile); os.IsNotExist(err) {
-			dir = filepath.Dir(dir)
-			continue
+	if info, err := os.Stat(from); err == nil && info.IsDir() {
+		dir = filepath.Clean(from)
+	}
+	gopath := os.Getenv("GOPATH")
+	if gopath != "" {
+		gopath = filepath.Clean(gopath)
+	}
+	for dir != string(filepath.Separator) && dir != gopath {
+		if _, err := os.Stat(filepath.Join(dir, file)); err == nil {
+			return dir
 		}
-		return dir
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
 	}
 	return ""
 }
 
-// ReadModulePath reads and returns the module path from the go.mod file at the given root directory.
+// ReadModulePath returns the module path from the go.mod file in root.
 func (l *Locator) ReadModulePath(root string) (string, error) {
 	goModFilePath := filepath.Join(root, goModFilename)
 
@@ -131,10 +141,7 @@ func (l *Locator) ReadModulePath(root string) (string, error) {
 	return "", tracerr.Wrap(ErrModulePathNotFound)
 }
 
-// RelativePackagePath returns the package directory path relative to the module root.
-// modRoot is the absolute path to the module root, e.g. `/Users/username/project`
-// fullPath is the absolute path to the package directory, e.g. `/Users/username/project/pkg/destination`
-// returns the relative package path, e.g. `pkg/destination`
+// RelativePackagePath returns fullPath relative to the module root modRoot.
 func (l *Locator) RelativePackagePath(modRoot string, fullPath string) (string, error) {
 	slog.Debug(
 		"RelativePackagePath",

@@ -27,15 +27,8 @@ func Sprint(err error) string {
 	return sprint(err, []int{0}, false)
 }
 
-// SprintSourceColor returns error message with stack trace and source fragments.
-//
-// By default, 6 lines of source code will be printed,
-// see DefaultLinesAfter and DefaultLinesBefore.
-//
-// Pass a single number to specify a total number of source lines.
-//
-// Pass two numbers to specify exactly how many lines should be shown
-// before and after traced line.
+// SprintSourceColor returns the error message, stack trace and colored source lines around each
+// frame. Pass no nums for the defaults, one for the total lines, or two for lines before and after.
 func SprintSourceColor(err error, nums ...int) string {
 	return sprint(err, nums, true)
 }
@@ -58,7 +51,6 @@ func sprint(err error, nums []int, colorized bool) string {
 		expectedRows = (before+after+3)*len(frames) + 2
 	}
 	rows := make([]string, 0, expectedRows)
-	// will return first error message, it should be built by fmt.Errorf to see the whole message
 	rows = append(rows, err.Error())
 	if withSource {
 		rows = append(rows, "")
