@@ -5,7 +5,14 @@ on:
       - main
 
 jobs:
+  lint:
+    uses: ./.github/workflows/run-lint.yml
+
+  test:
+    uses: ./.github/workflows/run-test.yml
+
   create-tag-release:
+    needs: [ lint, test ]
     permissions:
       contents: write
     runs-on: ubuntu-latest
