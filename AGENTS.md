@@ -34,7 +34,7 @@ This is a multi-package utility library. Each top-level directory is its own pac
 
 ## Release
 
-- Every push to `main` makes a tag (`.github/workflows/release.yml`, `default_bump: patch`). It does not wait for lint or test.
+- Every push to `main` makes a tag (`.github/workflows/release.yml`, `default_bump: patch`). It calls `run-lint.yml` and `run-test.yml` first (`workflow_call`) and makes the tag only if both pass. On pull requests these two run on their own.
 - Pull requests are squash-merged, so the PR title decides the version bump: a title that starts with `feat` gives a minor bump, anything else a patch bump.
 - A released tag can not be changed.
 - `.agent/` (plans and task logs) is git-ignored.
